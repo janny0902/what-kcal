@@ -15,16 +15,32 @@ import 'store.dart';
 import 'theme.dart';
 import 'widgets/common.dart';
 
-class WhatKcalApp extends StatefulWidget {
+class WhatKcalApp extends StatelessWidget {
   const WhatKcalApp({super.key, required this.store});
 
   final MealStore store;
 
   @override
-  State<WhatKcalApp> createState() => _WhatKcalAppState();
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: '왓칼로리',
+      debugShowCheckedModeBanner: false,
+      theme: appTheme(),
+      home: _WhatKcalShell(store: store),
+    );
+  }
 }
 
-class _WhatKcalAppState extends State<WhatKcalApp> {
+class _WhatKcalShell extends StatefulWidget {
+  const _WhatKcalShell({required this.store});
+
+  final MealStore store;
+
+  @override
+  State<_WhatKcalShell> createState() => _WhatKcalShellState();
+}
+
+class _WhatKcalShellState extends State<_WhatKcalShell> {
   int _tab = 0;
   int _backTab = 0;
   String? _imagePath;
@@ -73,54 +89,49 @@ class _WhatKcalAppState extends State<WhatKcalApp> {
             ? ('식단 올리기', '계산 전 식사를 확인해요')
             : titles[_tab];
 
-    return MaterialApp(
-      title: '왓칼로리',
-      debugShowCheckedModeBanner: false,
-      theme: appTheme(),
-      home: PopScope(
-        canPop: _onTabs,
-        onPopInvokedWithResult: (didPop, result) {
-          if (!didPop) _leaveOverlay();
-        },
-        child: Scaffold(
-          backgroundColor: AppColors.bg,
-          body: SafeArea(
-            bottom: false,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 430),
-                child: ColoredBox(
-                  color: AppColors.bg,
-                  child: Column(
-                    children: [
-                      _header(title.$1, title.$2, showBack: !_onTabs),
-                      Expanded(child: _body()),
-                      if (_fallback)
-                        const Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Text('광고를 불러오지 못했어요. 결과를 이어갈게요.', textAlign: TextAlign.center),
+    return PopScope(
+      canPop: _onTabs,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _leaveOverlay();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.bg,
+        body: SafeArea(
+          bottom: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 430),
+              child: ColoredBox(
+                color: AppColors.bg,
+                child: Column(
+                  children: [
+                    _header(title.$1, title.$2, showBack: !_onTabs),
+                    Expanded(child: _body()),
+                    if (_fallback)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('광고를 불러오지 못했어요. 결과를 이어갈게요.', textAlign: TextAlign.center),
+                      ),
+                    if (_draft != null || _onTabs)
+                      const Padding(padding: EdgeInsets.only(top: 6), child: AdmobBanner()),
+                    if (_imagePath != null && _draft == null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                        child: Column(
+                          children: [
+                            MintButton(label: _analyzing ? '분석 중' : _busy ? '광고 준비 중' : '계산하기', onPressed: _busy ? null : _calculate),
+                            const SizedBox(height: 6),
+                            const Text('광고가 나오는 동안 AI가 사진 속 음식을 분석해요.', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                          ],
                         ),
-                      if (_draft != null || _onTabs)
-                        const Padding(padding: EdgeInsets.only(top: 6), child: AdmobBanner()),
-                      if (_imagePath != null && _draft == null)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                          child: Column(
-                            children: [
-                              MintButton(label: _analyzing ? '분석 중' : _busy ? '광고 준비 중' : '계산하기', onPressed: _busy ? null : _calculate),
-                              const SizedBox(height: 6),
-                              const Text('광고가 나오는 동안 AI가 사진 속 음식을 분석해요.', style: TextStyle(color: AppColors.muted, fontSize: 12)),
-                            ],
-                          ),
-                        ),
-                      if (_draft != null)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                          child: MintButton(label: '이 기기에 저장', onPressed: hasValidItem(_draft!) ? _save : null),
-                        ),
-                      if (_onTabs) _tabs(),
-                    ],
-                  ),
+                      ),
+                    if (_draft != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                        child: MintButton(label: '이 기기에 저장', onPressed: hasValidItem(_draft!) ? _save : null),
+                      ),
+                    if (_onTabs) _tabs(),
+                  ],
                 ),
               ),
             ),
@@ -201,23 +212,34 @@ class _WhatKcalAppState extends State<WhatKcalApp> {
   }
 
   Widget _tabs() {
-    return Container(
-      decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: AppColors.line))),
-      padding: const EdgeInsets.only(bottom: 8, top: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          _tabButton(0, Icons.home_outlined, '오늘'),
-          _tabButton(1, Icons.calendar_month_outlined, '달력'),
-          Expanded(
-            child: Transform.translate(
-              offset: const Offset(0, -16),
-              child: Center(
-                child: Material(
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    return Material(
+      color: Colors.white,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.line))),
+        child: Padding(
+          padding: EdgeInsets.only(top: 8, bottom: bottomInset > 8 ? bottomInset : 8),
+          child: SizedBox(
+            height: 58,
+            child: Stack(
+              alignment: Alignment.bottomCenter,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _tabButton(0, Icons.home_outlined, '오늘'),
+                    _tabButton(1, Icons.calendar_month_outlined, '달력'),
+                    const Expanded(child: SizedBox.shrink()),
+                    _tabButton(2, Icons.format_list_bulleted, '기록'),
+                    _tabButton(3, Icons.person_outline, '설정'),
+                  ],
+                ),
+                Material(
                   color: AppColors.mint,
                   shape: const CircleBorder(),
                   elevation: 4,
                   child: InkWell(
+                    key: const Key('camera-fab'),
                     customBorder: const CircleBorder(),
                     onTap: _pickPhoto,
                     child: const SizedBox(
@@ -227,12 +249,10 @@ class _WhatKcalAppState extends State<WhatKcalApp> {
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
-          _tabButton(2, Icons.format_list_bulleted, '기록'),
-          _tabButton(3, Icons.person_outline, '설정'),
-        ],
+        ),
       ),
     );
   }

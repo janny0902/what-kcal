@@ -1,7 +1,11 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:whatkcal/analyzer.dart';
 import 'package:whatkcal/logic.dart';
 import 'package:whatkcal/models.dart';
+import 'package:whatkcal/shell.dart';
+import 'package:whatkcal/store.dart';
 
 void main() {
   test('점심 시간대는 점심으로 나눈다', () {
@@ -64,5 +68,21 @@ void main() {
 
   test('음식이 없는 사진은 분석 실패로 넘긴다', () {
     expect(() => parseAnalysis({'recognized': false, 'items': []}), throwsA(isA<AnalysisException>()));
+  });
+
+  testWidgets('카메라 버튼을 누르면 식단 사진 시트가 열린다', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    final store = MealStore()..helloSeen = true;
+    await tester.pumpWidget(WhatKcalApp(store: store));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('camera-fab')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('식단 사진'), findsOneWidget);
+    expect(find.text('카메라로 찍기'), findsOneWidget);
+    expect(find.text('앨범에서 고르기'), findsOneWidget);
   });
 }
