@@ -1,0 +1,237 @@
+
+1. 사진촬영 ai인식으로 자동 칼로리 계산 및 기록 앱 (왓? 칼로리?)
+    광고시점 : 칼로리 계산하는 동안 5초 광고 ~ 15초 광고, 배너광고
+	기록을 남기고싶다면 로그인,  로그인 안하면 삭제시 데이터 보유안함 보안관점 우수
+	
+	당신은 음식 이미지 기반 영양 분석 및 칼로리 계산 전문 AI입니다.
+	사용자가 제공한 음식 사진을 식별하여 음식 종류, 칼로리, 인분 수 옵션, 영양 피드백, 음식의 유래 및 스토리텔링을 구조화된 JSON 형태로 출력해야 합니다.
+
+	[작성 규칙]
+	1. 응답은 반드시 마크다운 코드 블록(```json ... ```)을 포함한 유효한 JSON 형식이어야 합니다.
+	2. category는 "한식", "양식", "중식", "일식", "분식", "구내식당", "패스트푸드", "디저트/카페" 중 하나로 분류합니다.
+	3. items 배열에는 사진에 담긴 각 개별 음식의 이름, 사진 속 시각적 분량 기준 예상 칼로리(단일값 또는 범위), 영양 및 식재료 특징에 대한 간결한 설명을 포함합니다.
+	4. estimated_servings_options에는 시각적으로 추정되는 인분 수를 숫자 배열(예: [1], [2, 3], [4, 5]) 형태로 제공합니다. 단체 식사이거나 나눠 먹는 메뉴인 경우 사용자가 선택할 수 있도록 다중 선택지를 제공합니다.
+	5. macro_feedback에는 식단의 탄단지(탄수화물/단백질/지방) 균형 분석과 건강한 섭취를 위한 실행 가능한 조언(예: 섭취량 조절 팁)을 포함합니다.
+	6. food_story에는 식탁 위 대표 메뉴에 얽힌 전설, 역사적 배경, 어원 또는 생겨난 유래를 흥미롭고 간결하게 2~3문장으로 요약하여 제공합니다.
+	7. 접속국가기준  현재 일자, 요일을 응답하고, 해당 시간에 맞게 아침, 아점, 점심, 점저, 저녁, 야식중 한개로 응담 ex : 2026-09-17 08:00:00(KR) 점심 
+
+
+요구사항 정의서 (PRD v2.0): 하이브리드 AI 칼로리 다이어리 앱
+1. 개요 및 아키텍처 전략
+목표: 기본 기능은 온디바이스(로컬 스토리지)와 전면 광고 기반으로 동작하며, API 키 보호 및 크로스 디바이스 데이터 동기화를 위해 가벼운 프록시 백엔드를 도입.
+
+아키텍처 구조:
+
+Client: Flutter 또는 React Native (로컬 DB + 온보딩 없이 즉시 사용).
+
+Backend: 경량 API 서버 (Spring Boot 또는 Node.js/FastAPI, 혹은 Supabase/Firebase 기반 Serverless Functions).
+
+AI 호출 구조: Client -> Backend Proxy -> Multimodal LLM API (API Key 은닉 및 Abuse 방지).
+
+데이터 전략: Local First, Cloud Backup. 비로그인 사용자는 로컬 SQLite/Hive만 사용하며, 로그인 시점에 로컬 데이터를 원격 DB로 동기화(Migration & Sync).
+
+2. 사용자 인증 및 데이터 동기화 정책
+2.1. 사용자 상태 정의
+게스트 모드 (기본):
+
+앱 설치 즉시 로그인 없이 진입.
+
+모든 식사 기록, 이미지, 칼로리 통계는 단말기 로컬 DB에만 저장.
+
+회원 모드 (선택 사항):
+
+소셜 로그인 제공: Google 로그인, Kakao 로그인.
+
+로그인 목적: "기기 변경 시 데이터 복원 및 원격 백업".
+
+2.2. 동기화 및 복원 워크플로우
+로컬 -> 서버 동기화 (최초 로그인 시점):
+
+게스트 상태에서 누적된 로컬 SQLite 레코드 조회.
+
+신규 계정 연동 시 로컬 데이터를 서버 DB로 일괄 업로드(Bulk Insert).
+
+로그인 완료 후부터 발생하는 신규 기록은 로컬 저장과 동시에 백엔드로 동기화.
+
+서버 -> 로컬 복원 (기기 변경/재설치 시 로그인):
+
+앱 설치 후 기존 계정(구글/카카오)으로 로그인.
+
+서버에 저장된 해당 유저의 식단 히스토리를 내려받아 로컬 DB에 채워 넣음(Hydration).
+
+이후 오프라인 상태에서도 동일하게 조회 가능.
+
+3. 기능 요구사항 (Functional Requirements)
+3.1. 사진 촬영 및 백엔드 AI 프록시 분석
+입력: 카메라 촬영 또는 갤러리 선택 (단말기에서 1024px 수준 압축 처리).
+
+타임스탬프 & 식사 자동 분류:
+
+단말기 시스템 시간 기준 식사 타입 자동 매핑 (아침: 05:00~10:30, 점심: 10:31~16:00, 저녁: 16:01~21:30, 야식: 21:31~04:59).
+
+통신 흐름:
+
+[계산하기] 탭 즉시 AdMob 전면 광고(5~15초) 재생 시작.
+
+클라이언트가 백엔드로 POST /api/v1/diet/analyze 요청 (Multipart 이미지 + Timestamp + MealType).
+
+백엔드에서 API Key를 사용하여 LLM 호출, 구조화된 JSON 파싱 및 유효성 검증 후 클라이언트에 반환.
+
+광고 종료 및 응답 완료 시 분석 결과 화면으로 라우팅.
+
+3.2. 분석 결과 확인 및 다이어리 저장
+결과 UI:
+
+분류(아침/점심/저녁) 배지 및 수동 수정 드롭다운.
+
+음식별 항목 카드 (이름, 분량, 칼로리).
+
+인분 수 옵션 칩([1인분], [2~3인분] 등) 선택에 따른 칼로리 실시간 반영.
+
+탄단지 피드백 요약 및 음식 유래 스토리 표출.
+
+저장 트리거:
+
+[저장하기] 클릭 시 로컬 DB에 즉시 Write.
+
+로그인 상태인 경우 백엔드 POST /api/v1/meals 비동기 큐 호출.
+
+3.3. 대시보드 및 캘린더 (Local First 조회)
+네트워크 상태와 무관하게 로컬 DB를 기준으로 빠른 렌더링 지원.
+
+일간 뷰: 아침/점심/저녁/야식 카드 타임라인, 식사별 칼로리 및 당일 총 섭취 칼로리.
+
+주간 뷰: 요일별 칼로리 막대그래프, 주간 일평균/누적 칼로리.
+
+월간 뷰: 캘린더 셀 내 일자별 총칼로리 라벨링 및 주차별 칼로리 요약.
+
+대시보드는 현재 섭취한 칼로리비교 (남성 평칼로리, 여성 평균칼로리,아이, 노인 ) 버튼으로 비교군 제공
+
+4. 백엔드 API 명세 (Backend Interfaces)
+4.1. AI 분석 프록시
+Endpoint: POST /api/v1/diet/analyze
+
+Headers: Authorization: Bearer <Token> (게스트인 경우 임시 디바이스 식별 토큰 또는 공개 엔드포인트 rate-limiting 적용)
+
+Request: multipart/form-data (image file, client_time, detected_meal_type)
+
+
+4.2. 데이터 백업 및 복원
+동기화 (로컬 -> 서버): POST /api/v1/sync/backup
+
+Body: MealRecord 객체 배열 (JSON payload).
+
+복원 (서버 -> 로컬): GET /api/v1/sync/restore?since={timestamp}
+
+Return: 로그인 유저의 원격 저장 식단 히스토리 목록.
+
+5. 데이터베이스 스키마 설계
+5.1. 클라이언트 로컬 DB (SQLite)
+is_synced 컬럼을 두어 서버 전송 여부를 트래킹.
+
+SQL
+CREATE TABLE local_meals (
+    id TEXT PRIMARY KEY,                 -- UUID
+    meal_date TEXT NOT NULL,             -- YYYY-MM-DD
+    meal_time TEXT NOT NULL,             -- HH:mm:ss
+    meal_type TEXT NOT NULL,             -- BREAKFAST, LUNCH, DINNER, SNACK
+    category TEXT,
+    total_calories INTEGER NOT NULL,
+    servings_selected REAL DEFAULT 1.0,
+    macro_summary TEXT,
+    food_story TEXT,
+    image_uri TEXT,                      -- 로컬 기기 저장 경로
+    is_synced INTEGER DEFAULT 0,         -- 0: 미동기화, 1: 동기화 완료
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE local_meal_items (
+    id TEXT PRIMARY KEY,
+    meal_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    portion TEXT,
+    calories INTEGER NOT NULL,
+    description TEXT,
+    FOREIGN KEY(meal_id) REFERENCES local_meals(id) ON DELETE CASCADE
+);
+5.2. 백엔드 원격 DB (PostgreSQL / MySQL)
+SQL
+CREATE TABLE users (
+    id VARCHAR(36) PRIMARY KEY,
+    provider VARCHAR(20) NOT NULL,       -- GOOGLE, KAKAO
+    provider_id VARCHAR(255) NOT NULL UNIQUE,
+    email VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE remote_meals (
+    id VARCHAR(36) PRIMARY KEY,          -- 클라이언트의 meal UUID와 동일하게 유지
+    user_id VARCHAR(36) NOT NULL,
+    meal_date DATE NOT NULL,
+    meal_time TIME NOT NULL,
+    meal_type VARCHAR(20) NOT NULL,
+    category VARCHAR(50),
+    total_calories INT NOT NULL,
+    servings_selected FLOAT DEFAULT 1.0,
+    macro_summary TEXT,
+    food_story TEXT,
+    image_url TEXT,                      -- 필요 시 S3/GCS 업로드 URL (텍스트 데이터만 백업할 경우 생략 가능)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE remote_meal_items (
+    id VARCHAR(36) PRIMARY KEY,
+    meal_id VARCHAR(36) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    portion VARCHAR(100),
+    calories INT NOT NULL,
+    description TEXT,
+    FOREIGN KEY (meal_id) REFERENCES remote_meals(id) ON DELETE CASCADE
+);
+6. 보안 및 운영 관리 요구사항
+
+이미지 백업 정책 결정: 서버 용량 비용 절감을 위해 원격 백업 대상은 텍스트 데이터(음식명, 칼로리, 날짜 등) 위주로 우선 구성하고, 이미지 원격 백업은 선택 옵션 또는 로컬 보관만 지원하는 방식 권장.
+
+광고 최적화: AdMob Interstitial Ad 로드 실패 시에도 AI 분석 흐름이 중단되지 않고 일반 로딩 화면으로 폴백(Fallback) 처리.
+
+타시스템 통합DB 구축 안 제시.
+
+7. 1차 제품 확정 (2026-10-07)
+
+구현
+- Android 앱(Flutter). 화면은 기존 민트 메신저 디자인을 유지한다.
+- 로그인, 서버 저장, 원격 백업은 없다.
+- 식사 기록은 앱 안 SharedPreferences와 기기 사진 파일만 사용한다. 앱을 지우면 기록도 사라진다.
+
+화면
+- 비트윈 기본 테마인 민트 메신저. 민트 상단바, 옅은 대화방 배경, 흰 말풍선 카드, 둥근 모서리, 하트, 가운데 카메라 버튼.
+
+식사 구분 (한국 시간)
+- 아침 05:00–08:59
+- 아점 09:00–10:59
+- 점심 11:00–14:29
+- 점저 14:30–16:59
+- 저녁 17:00–20:59
+- 야식 21:00–04:59
+- 화면 표기: YYYY-MM-DD HH:mm:ss(KR) 식사. 식사 종류는 결과에서 수정할 수 있다.
+
+광고 수익
+- 애드몹. 가화만사성과 같은 앱 ID, 배너 단위를 사용한다.
+- 디버그: 구글 샘플 배너·전면. 출시 앱 ID ca-app-pub-3648414759201370~3120558671.
+- 출시 배너 ca-app-pub-3648414759201370/8645357250, 출시 전면 ca-app-pub-3648414759201370/4926348952.
+- 광고를 못 불러오면 짧은 안내 후 결과로 이동한다.
+- 오늘, 달력, 기록, 설정, 결과 하단에 배너.
+
+분석
+- 인식 API 연결 전에는 미리보기 입력. 자주 먹는 음식 칩 또는 직접 입력으로 이름, 칼로리, 분량, 분류, 인분, 탄단지, 유래를 채운 뒤 저장한다.
+- 인분을 고르면 사진 전체 칼로리를 인원으로 나눠 내 섭취량으로 보여 준다.
+
+비교
+- 오늘 섭취를 성인 남성 2,500 / 성인 여성 2,000 / 아이 1,700 / 노인 1,800 kcal 참고치와 비교한다. 의료 진단이 아니다.
+
+화면 구성
+- 오늘: 일간 합계, 참고치 비교, 식사 타임라인
+- 달력: 주간 막대(누적, 7일 평균), 월간 칸별 칼로리
+- 기록: 날짜별 전체 목록
+- 설정: 게스트 안내, 광고, 기록 삭제
