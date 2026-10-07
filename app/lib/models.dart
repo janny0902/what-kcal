@@ -1,6 +1,42 @@
 const mealTypes = ['아침', '아점', '점심', '점저', '저녁', '야식'];
 const categories = ['한식', '양식', '중식', '일식', '분식', '구내식당', '패스트푸드', '디저트/카페'];
 
+class FoodChoice {
+  const FoodChoice({
+    required this.label,
+    required this.name,
+    required this.portion,
+    required this.calories,
+    required this.description,
+  });
+
+  final String label;
+  final String name;
+  final String portion;
+  final int calories;
+  final String description;
+
+  Map<String, dynamic> toJson() => {
+        'label': label,
+        'name': name,
+        'portion': portion,
+        'calories': calories,
+        'description': description,
+      };
+
+  factory FoodChoice.fromJson(Map<String, dynamic> json) {
+    final name = json['name'] as String? ?? '';
+    final label = json['label'] as String? ?? '';
+    return FoodChoice(
+      label: label.isEmpty ? name : label,
+      name: name,
+      portion: json['portion'] as String? ?? '',
+      calories: (json['calories'] as num?)?.round() ?? 0,
+      description: json['description'] as String? ?? '',
+    );
+  }
+}
+
 class MealItem {
   MealItem({
     required this.id,
@@ -8,15 +44,56 @@ class MealItem {
     required this.portion,
     required this.calories,
     required this.description,
+    this.question = '',
+    this.choices = const [],
+    this.choiceIndex = 0,
   });
+
+  /// 인식 후보 중 하나를 골라 이름·분량·칼로리를 그 후보 값으로 채운다.
+  factory MealItem.recognized(String id, String question, List<FoodChoice> choices) {
+    final first = choices.first;
+    return MealItem(
+      id: id,
+      name: first.name,
+      portion: first.portion,
+      calories: first.calories,
+      description: first.description,
+      question: question,
+      choices: choices,
+    );
+  }
 
   final String id;
   String name;
   String portion;
   int calories;
   String description;
+  final String question;
+  final List<FoodChoice> choices;
+  int choiceIndex;
 
-  MealItem copy() => MealItem(id: id, name: name, portion: portion, calories: calories, description: description);
+  bool get recognized => choices.isNotEmpty;
+
+  void choose(int index) {
+    if (index < 0 || index >= choices.length) return;
+    final choice = choices[index];
+    choiceIndex = index;
+    name = choice.name;
+    portion = choice.portion;
+    calories = choice.calories;
+    description = choice.description;
+  }
+
+  MealItem copy() => MealItem(
+        id: id,
+        name: name,
+        portion: portion,
+        calories: calories,
+        description: description,
+        question: question,
+        choices: choices,
+        choiceIndex: choiceIndex,
+      );
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -24,6 +101,9 @@ class MealItem {
         'portion': portion,
         'calories': calories,
         'description': description,
+        'question': question,
+        'choices': choices.map((choice) => choice.toJson()).toList(),
+        'choiceIndex': choiceIndex,
       };
 
   factory MealItem.fromJson(Map<String, dynamic> json) => MealItem(
@@ -32,6 +112,11 @@ class MealItem {
         portion: json['portion'] as String? ?? '',
         calories: (json['calories'] as num?)?.round() ?? 0,
         description: json['description'] as String? ?? '',
+        question: json['question'] as String? ?? '',
+        choices: ((json['choices'] as List?) ?? const [])
+            .map((choice) => FoodChoice.fromJson(Map<String, dynamic>.from(choice as Map)))
+            .toList(),
+        choiceIndex: (json['choiceIndex'] as num?)?.round() ?? 0,
       );
 }
 

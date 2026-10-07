@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'ads.dart';
+import 'analyzer.dart';
 import 'logic.dart';
 import 'models.dart';
 import 'pages/archive_page.dart';
@@ -31,6 +32,8 @@ class _WhatKcalAppState extends State<WhatKcalApp> {
   MealRecord? _draft;
   bool _busy = false;
   bool _fallback = false;
+  bool _analyzing = false;
+  String? _analysisNotice;
   bool _askedHello = false;
 
   @override
@@ -49,7 +52,7 @@ class _WhatKcalAppState extends State<WhatKcalApp> {
     if (mounted) setState(() {});
   }
 
-  bool get _onTabs => _imagePath == null && _draft == null && !_fallback;
+  bool get _onTabs => _imagePath == null && _draft == null && !_fallback && !_analyzing;
 
   @override
   Widget build(BuildContext context) {
@@ -104,9 +107,9 @@ class _WhatKcalAppState extends State<WhatKcalApp> {
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                           child: Column(
                             children: [
-                              MintButton(label: _busy ? '광고 준비 중' : '계산하기', onPressed: _busy ? null : _calculate),
+                              MintButton(label: _analyzing ? '분석 중' : _busy ? '광고 준비 중' : '계산하기', onPressed: _busy ? null : _calculate),
                               const SizedBox(height: 6),
-                              const Text('계산이 시작되면 전면 광고가 나와요.', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                              const Text('광고가 나오는 동안 AI가 사진 속 음식을 분석해요.', style: TextStyle(color: AppColors.muted, fontSize: 12)),
                             ],
                           ),
                         ),
@@ -132,8 +135,20 @@ class _WhatKcalAppState extends State<WhatKcalApp> {
     if (_fallback) {
       return const Center(child: CircularProgressIndicator(color: AppColors.mint));
     }
+    if (_analyzing) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: AppColors.mint),
+            SizedBox(height: 14),
+            Text('사진 속 음식을 분석하고 있어요', style: TextStyle(color: AppColors.muted)),
+          ],
+        ),
+      );
+    }
     if (draft != null) {
-      return ResultPage(draft: draft, onChanged: (next) => setState(() => _draft = next));
+      return ResultPage(draft: draft, notice: _analysisNotice, onChanged: (next) => setState(() => _draft = next));
     }
     final image = _imagePath;
     if (image != null) {
@@ -256,7 +271,7 @@ class _WhatKcalAppState extends State<WhatKcalApp> {
           children: [
             const Text('이 폰에만 남아요', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
-            const Text('식사 기록은 이 앱 안에만 저장돼요. 계정은 없고, 앱을 지우면 기록도 함께 사라집니다.', style: TextStyle(height: 1.5)),
+            const Text('식사 기록은 이 앱 안에만 저장돼요. 계정은 없고, 앱을 지우면 기록도 함께 사라집니다. 사진은 계산할 때 AI 분석에만 보내고 서버에 남기지 않아요.', style: TextStyle(height: 1.5)),
             const SizedBox(height: 12),
             MintButton(label: '알겠어요', onPressed: () => Navigator.pop(context)),
           ],
@@ -308,7 +323,13 @@ class _WhatKcalAppState extends State<WhatKcalApp> {
   Future<void> _calculate() async {
     final image = _imagePath;
     if (image == null || _busy) return;
-    setState(() => _busy = true);
+    final now = seoulStamp();
+    setState(() {
+      _busy = true;
+      _analysisNotice = null;
+    });
+    final analysis = analyzeMeal(imagePath: image, mealType: _captureType, clientTime: '${now.mealDate} ${now.mealTime}')
+        .then<Object>((value) => value, onError: (Object error) => error);
     final shown = await showInterstitial();
     if (!mounted) return;
     if (!shown) {
@@ -316,24 +337,34 @@ class _WhatKcalAppState extends State<WhatKcalApp> {
       await Future<void>.delayed(const Duration(milliseconds: 900));
       if (!mounted) return;
     }
-    final now = seoulStamp();
+    setState(() {
+      _fallback = false;
+      _analyzing = true;
+    });
+    final outcome = await analysis;
+    if (!mounted) return;
+    final result = outcome is MealAnalysis ? outcome : null;
     setState(() {
       _busy = false;
-      _fallback = false;
+      _analyzing = false;
+      _analysisNotice = result == null
+          ? '${outcome is AnalysisException ? outcome.message : '사진을 분석하지 못했어요.'} 음식을 고르거나 직접 입력해 주세요.'
+          : null;
       _draft = MealRecord(
         id: newId(),
         mealDate: now.mealDate,
         mealTime: now.mealTime,
         mealType: _captureType,
-        category: '한식',
-        items: [MealItem(id: newId(), name: '', portion: '', calories: 0, description: '')],
-        servingOptions: [
-          [1],
-          [2, 3],
-        ],
+        category: result?.category ?? '한식',
+        items: result?.items ?? [MealItem(id: newId(), name: '', portion: '', calories: 0, description: '')],
+        servingOptions: result?.servingOptions ??
+            [
+              [1],
+              [2, 3],
+            ],
         servingIndex: 0,
-        macroFeedback: '음식 이름과 칼로리를 입력하면 탄단지 균형을 짧게 정리해 드려요.',
-        foodStory: '음식의 유래를 이 자리에 적어 둘 수 있어요.',
+        macroFeedback: result?.macroFeedback ?? '',
+        foodStory: result?.foodStory ?? '',
         imagePath: image,
         recordedLabel: recordedLabel(now.mealDate, now.mealTime, _captureType),
         updatedAt: DateTime.now().millisecondsSinceEpoch,
@@ -344,12 +375,14 @@ class _WhatKcalAppState extends State<WhatKcalApp> {
   void _edit(MealRecord meal) {
     setState(() {
       _backTab = _tab;
+      _analysisNotice = null;
       _draft = meal.copy();
       _imagePath = meal.imagePath;
     });
   }
 
   void _leaveOverlay() {
+    if (_busy) return;
     setState(() {
       _draft = null;
       _imagePath = null;
@@ -361,13 +394,10 @@ class _WhatKcalAppState extends State<WhatKcalApp> {
     final draft = _draft;
     if (draft == null || !hasValidItem(draft)) return;
     draft.items = draft.items
-        .map((item) => MealItem(
-              id: item.id,
-              name: item.name.trim(),
-              portion: item.portion.trim(),
-              calories: item.calories,
-              description: item.description.trim(),
-            ))
+        .map((item) => item.copy()
+          ..name = item.name.trim()
+          ..portion = item.portion.trim()
+          ..description = item.description.trim())
         .where((item) => item.name.isNotEmpty && item.calories > 0)
         .toList();
     draft.macroFeedback = draft.macroFeedback.trim();

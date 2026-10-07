@@ -44,6 +44,8 @@ class SettingsPage extends StatelessWidget {
               Text('데이터', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               SizedBox(height: 8),
               Text('계정이나 서버에는 기록을 올리지 않아요. 식사 기록은 이 앱 안에만 남고, 앱을 지우면 함께 사라집니다.', style: TextStyle(height: 1.5)),
+              SizedBox(height: 6),
+              Text('계산하기를 누르면 사진을 Google Gemini AI로 보내 음식을 인식해요. 분석이 끝나면 사진은 서버에 남지 않아요.', style: TextStyle(height: 1.5)),
             ],
           ),
         ),
@@ -54,7 +56,7 @@ class SettingsPage extends StatelessWidget {
             children: [
               Text('광고', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               SizedBox(height: 8),
-              Text('계산하기를 누르면 애드몹 전면 광고가 나와요. 화면 아래에는 배너 광고가 있어요.', style: TextStyle(height: 1.5)),
+              Text('계산하기를 누르면 AI 분석이 진행되는 동안 애드몹 전면 광고가 나와요. 화면 아래에는 배너 광고가 있어요.', style: TextStyle(height: 1.5)),
               SizedBox(height: 6),
               Text('광고를 불러오지 못하면 기다리지 않고 결과로 이어져요.', style: TextStyle(height: 1.5)),
             ],

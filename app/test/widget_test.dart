@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:whatkcal/analyzer.dart';
 import 'package:whatkcal/logic.dart';
 import 'package:whatkcal/models.dart';
 
@@ -29,5 +30,39 @@ void main() {
       updatedAt: 0,
     );
     expect(eatenCalories(meal), 180);
+  });
+
+  test('헷갈리는 튀김은 후보를 고르면 칼로리가 바뀐다', () {
+    final analysis = parseAnalysis({
+      'recognized': true,
+      'category': '중식',
+      'items': [
+        {
+          'question': '어떤 튀김인가요?',
+          'choices': [
+            {'label': '돼지고기', 'name': '탕수육', 'portion': '1접시', 'calories': 780, 'description': ''},
+            {'label': '닭고기', 'name': '깐풍기', 'portion': '1접시', 'calories': 650, 'description': ''},
+          ],
+        },
+      ],
+      'estimated_servings_options': [
+        [1],
+        [2, 3],
+      ],
+    });
+    final item = analysis.items.single;
+    expect(analysis.category, '중식');
+    expect(item.name, '탕수육');
+    expect(item.calories, 780);
+    item.choose(1);
+    expect(item.name, '깐풍기');
+    expect(item.calories, 650);
+    final restored = MealItem.fromJson(item.toJson());
+    expect(restored.choices.length, 2);
+    expect(restored.choiceIndex, 1);
+  });
+
+  test('음식이 없는 사진은 분석 실패로 넘긴다', () {
+    expect(() => parseAnalysis({'recognized': false, 'items': []}), throwsA(isA<AnalysisException>()));
   });
 }
