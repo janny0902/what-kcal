@@ -43,8 +43,10 @@ class _CalendarPageState extends State<CalendarPage> {
     final weekValues = week.map((day) => totals[formatYmd(day)] ?? 0).toList();
     final weekSum = weekValues.fold(0, (sum, value) => sum + value);
     final weekMax = weekValues.fold(0, (max, value) => value > max ? value : max);
-    final selectedMeals = widget.store.meals.where((meal) => meal.mealDate == selectedYmd).toList()
-      ..sort((a, b) => a.mealTime.compareTo(b.mealTime));
+    final ref = compareRefs[widget.store.compare]!;
+    final weekGrams = weekValues.map((value) => value == 0 ? null : weightChangeGrams(value, ref.kcal)).toList();
+    final weekGramSum = weekGrams.fold(0, (sum, value) => sum + (value ?? 0));
+    final selectedMeals = widget.store.meals.where((meal) => meal.mealDate == selectedYmd).toList()..sort((a, b) => a.mealTime.compareTo(b.mealTime));
     final first = DateTime.utc(_cursor.year, _cursor.month, 1);
     final start = first.subtract(Duration(days: first.weekday % 7));
     final cells = List.generate(42, (index) => start.add(Duration(days: index)));
@@ -61,12 +63,15 @@ class _CalendarPageState extends State<CalendarPage> {
                 children: [
                   const Text('주간', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                   const Spacer(),
-                  Text('${week.first.month}월 ${week.first.day}일 – ${week.last.month}월 ${week.last.day}일', style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                  Text(
+                    '${week.first.month}월 ${week.first.day}일 – ${week.last.month}월 ${week.last.day}일',
+                    style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                  ),
                 ],
               ),
               const SizedBox(height: 14),
               SizedBox(
-                height: 120,
+                height: 136,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -88,7 +93,11 @@ class _CalendarPageState extends State<CalendarPage> {
                                         color: weekValues[i] == 0 ? const Color(0xFFEEF4F4) : null,
                                         gradient: weekValues[i] == 0
                                             ? null
-                                            : const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF8FF6EA), AppColors.mint]),
+                                            : const LinearGradient(
+                                                begin: Alignment.topCenter,
+                                                end: Alignment.bottomCenter,
+                                                colors: [Color(0xFF8FF6EA), AppColors.mint],
+                                              ),
                                         borderRadius: BorderRadius.circular(99),
                                       ),
                                     ),
@@ -96,7 +105,18 @@ class _CalendarPageState extends State<CalendarPage> {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              Text(labels[i], style: TextStyle(fontSize: 12, fontWeight: formatYmd(week[i]) == selectedYmd ? FontWeight.w800 : FontWeight.w500, color: formatYmd(week[i]) == selectedYmd ? AppColors.mintDeep : AppColors.muted)),
+                              Text(
+                                labels[i],
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: formatYmd(week[i]) == selectedYmd ? FontWeight.w800 : FontWeight.w500,
+                                  color: formatYmd(week[i]) == selectedYmd ? AppColors.mintDeep : AppColors.muted,
+                                ),
+                              ),
+                              Text(
+                                weekGrams[i] == null ? '–' : signedGrams(weekGrams[i]!),
+                                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: _gramColor(weekGrams[i])),
+                              ),
                             ],
                           ),
                         ),
@@ -110,7 +130,14 @@ class _CalendarPageState extends State<CalendarPage> {
                   _stat('누적', '${comma(weekSum)}kcal'),
                   const SizedBox(width: 8),
                   _stat('7일 평균', '${comma((weekSum / 7).round())}kcal'),
+                  const SizedBox(width: 8),
+                  _stat('누적 몸무게', signedGrams(weekGramSum), color: _gramColor(weekGrams.any((g) => g != null) ? weekGramSum : null)),
                 ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${ref.label} ${comma(ref.kcal)}kcal 기준, 기록한 날만 계산해요. -는 감량, +는 증가예요.',
+                style: const TextStyle(color: AppColors.muted, fontSize: 11, height: 1.4),
               ),
             ],
           ),
@@ -122,7 +149,13 @@ class _CalendarPageState extends State<CalendarPage> {
               Row(
                 children: [
                   _nav(() => setState(() => _cursor = DateTime.utc(_cursor.year, _cursor.month - 1))),
-                  Expanded(child: Text('${_cursor.year}년 ${_cursor.month}월', textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
+                  Expanded(
+                    child: Text(
+                      '${_cursor.year}년 ${_cursor.month}월',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
+                  ),
                   _nav(() => setState(() => _cursor = DateTime.utc(_cursor.year, _cursor.month + 1)), next: true),
                 ],
               ),
@@ -131,7 +164,19 @@ class _CalendarPageState extends State<CalendarPage> {
                 children: [
                   for (var i = 0; i < 7; i++)
                     Expanded(
-                      child: Text(labels[i], textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: i == 0 ? AppColors.rose : i == 6 ? AppColors.mintDeep : AppColors.muted)),
+                      child: Text(
+                        labels[i],
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: i == 0
+                              ? AppColors.rose
+                              : i == 6
+                              ? AppColors.mintDeep
+                              : AppColors.muted,
+                        ),
+                      ),
                     ),
                 ],
               ),
@@ -148,7 +193,9 @@ class _CalendarPageState extends State<CalendarPage> {
           ),
         ),
         const SizedBox(height: 12),
-        Center(child: Text(formatKoreanDate(_selected), style: const TextStyle(color: AppColors.muted, fontSize: 12))),
+        Center(
+          child: Text(formatKoreanDate(_selected), style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+        ),
         const SizedBox(height: 8),
         if (selectedMeals.isEmpty) const ChatBubble(child: Text('이 날은 아직 기록이 없어요.')),
         for (final meal in selectedMeals) MealCard(meal: meal, onOpen: () => widget.onOpen(meal), onDelete: () => widget.onDelete(meal)),
@@ -156,7 +203,12 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  Widget _stat(String label, String value) {
+  Color _gramColor(int? grams) {
+    if (grams == null || grams == 0) return AppColors.muted;
+    return grams < 0 ? AppColors.mintDeep : AppColors.rose;
+  }
+
+  Widget _stat(String label, String value, {Color color = AppColors.ink}) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(10),
@@ -165,7 +217,14 @@ class _CalendarPageState extends State<CalendarPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                style: TextStyle(fontWeight: FontWeight.w700, color: color),
+              ),
+            ),
           ],
         ),
       ),
@@ -194,8 +253,19 @@ class _CalendarPageState extends State<CalendarPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('${day.day}', style: TextStyle(fontSize: 13, fontWeight: today ? FontWeight.w800 : FontWeight.w500, color: inMonth ? (today ? AppColors.mintDeep : AppColors.ink) : const Color(0xFFC5D0D2))),
-            if (kcal > 0 && inMonth) Text(comma(kcal), style: const TextStyle(fontSize: 9, color: AppColors.mintDeep, fontWeight: FontWeight.w700)),
+            Text(
+              '${day.day}',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: today ? FontWeight.w800 : FontWeight.w500,
+                color: inMonth ? (today ? AppColors.mintDeep : AppColors.ink) : const Color(0xFFC5D0D2),
+              ),
+            ),
+            if (kcal > 0 && inMonth)
+              Text(
+                comma(kcal),
+                style: const TextStyle(fontSize: 9, color: AppColors.mintDeep, fontWeight: FontWeight.w700),
+              ),
           ],
         ),
       ),

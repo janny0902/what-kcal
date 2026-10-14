@@ -69,12 +69,24 @@ double servingDivisor(List<int> option) {
 int baseCalories(MealRecord meal) => meal.items.fold(0, (sum, item) => sum + item.calories);
 
 int eatenCalories(MealRecord meal) {
-  final option = meal.servingIndex >= 0 && meal.servingIndex < meal.servingOptions.length
-      ? meal.servingOptions[meal.servingIndex]
-      : const [1];
+  final option = meal.servingIndex >= 0 && meal.servingIndex < meal.servingOptions.length ? meal.servingOptions[meal.servingIndex] : const [1];
   final divisor = servingDivisor(option);
   if (divisor == 0) return baseCalories(meal);
   return (baseCalories(meal) / divisor).round();
+}
+
+/// 체지방 1kg ≈ 7,700kcal. 1,000kcal ≈ 130g.
+const kcalPerKg = 7700;
+
+int gramsFromKcal(int kcal) => (kcal * 1000 / kcalPerKg).round();
+
+/// 기준 칼로리 대비 몸무게 변화(g). 음수면 감량, 양수면 증가.
+int weightChangeGrams(int eaten, int reference) => gramsFromKcal(eaten - reference);
+
+String signedGrams(int grams) {
+  if (grams > 0) return '+${comma(grams)}g';
+  if (grams < 0) return '-${comma(-grams)}g';
+  return '0g';
 }
 
 bool hasValidItem(MealRecord meal) => meal.items.any((item) => item.name.trim().isNotEmpty && item.calories > 0);

@@ -31,7 +31,9 @@ const SYSTEM = `너는 음식 사진으로 칼로리를 계산하는 영양 분�
   ],
   "estimated_servings_options": [[1], [2, 3]],
   "macro_feedback": "탄단지 균형과 바로 실천할 조언 2~3문장",
-  "food_story": "대표 메뉴의 유래나 이야기 2~3문장"
+  "food_story": "대표 메뉴의 유래나 이야기 2~3문장",
+  "next_guide": { "title": "다음 행동 한 줄 제목 14자 이내", "body": "이 식사의 탄단지 치우침을 근거로 다음에 할 일 2~3문장" },
+  "exercise": { "name": "추천 운동 이름", "minutes": 정수, "calories": 정수 }
 }
 
 규칙:
@@ -44,6 +46,11 @@ const SYSTEM = `너는 음식 사진으로 칼로리를 계산하는 영양 분�
 - 분명한 음식은 choices를 하나만 두고 question은 빈 문자열이다.
 - label은 8자 이내, question은 16자 이내로 쓴다.
 - estimated_servings_options는 사진 속 양으로 추정한 인분 선택지다. 혼자 먹는 양이면 [[1]], 나눠 먹을 수 있는 양이면 [[1],[2,3]]처럼 준다.
+- next_guide는 식사 구분에 따라 정한다.
+  아침·아점이면 점심을 어떻게 먹을지, 점심·점저면 저녁을 어떻게 먹을지, 저녁·야식이면 오늘 남은 시간에 할 운동과 생활을 안내한다.
+  예: 점심에 튀김을 먹었으면 title "저녁은 채소 위주로", body "점심 튀김으로 지방을 많이 드셨어요. 저녁은 기름을 줄인 채소와 두부, 생선 위주로 가볍게 드세요."
+- exercise는 이 식사의 영양 특성에 맞는 운동 하나다. 탄수화물이 많으면 걷기·자전거 같은 유산소, 단백질이 충분하면 근력 운동처럼 고른다.
+  minutes는 20~60분, calories는 체중 60kg 성인이 그 시간 동안 소모하는 kcal 정수다.
 - 음식이 아니거나 식별할 수 없으면 {"recognized": false, "items": []}만 출력한다.
 - 의료 진단을 하지 않는다. 어조는 담백한 설명체(~해요).`;
 
@@ -91,6 +98,9 @@ function clean(raw: Record<string, unknown>) {
   if (!servings.some((option) => option.length === 1 && option[0] === 1)) servings.unshift([1]);
 
   const category = str(raw.category, 20);
+  const guide = (raw.next_guide ?? {}) as Record<string, unknown>;
+  const exercise = (raw.exercise ?? {}) as Record<string, unknown>;
+  const minutes = kcal(exercise.minutes);
   return {
     recognized: raw.recognized !== false && items.length > 0,
     category: CATEGORIES.includes(category) ? category : "한식",
@@ -98,6 +108,12 @@ function clean(raw: Record<string, unknown>) {
     estimated_servings_options: servings,
     macro_feedback: str(raw.macro_feedback, 400),
     food_story: str(raw.food_story, 400),
+    next_guide: { title: str(guide.title, 30), body: str(guide.body, 300) },
+    exercise: {
+      name: str(exercise.name, 30),
+      minutes: Math.min(120, minutes),
+      calories: Math.min(1000, kcal(exercise.calories)),
+    },
   };
 }
 
@@ -132,7 +148,7 @@ Deno.serve(async (req) => {
             role: "user",
             parts: [{ inline_data: { mime_type: mime, data: image } }, { text: hint }],
           }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 2048, responseMimeType: "application/json" },
+          generationConfig: { temperature: 0.3, maxOutputTokens: 3072, responseMimeType: "application/json" },
         }),
       },
     );

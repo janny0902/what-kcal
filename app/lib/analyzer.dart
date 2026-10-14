@@ -17,6 +17,11 @@ class MealAnalysis {
     required this.servingOptions,
     required this.macroFeedback,
     required this.foodStory,
+    this.guideTitle = '',
+    this.guideBody = '',
+    this.exerciseName = '',
+    this.exerciseMinutes = 0,
+    this.exerciseKcal = 0,
   });
 
   final String category;
@@ -24,6 +29,11 @@ class MealAnalysis {
   final List<List<int>> servingOptions;
   final String macroFeedback;
   final String foodStory;
+  final String guideTitle;
+  final String guideBody;
+  final String exerciseName;
+  final int exerciseMinutes;
+  final int exerciseKcal;
 }
 
 class AnalysisException implements Exception {
@@ -41,11 +51,7 @@ Future<MealAnalysis> analyzeMeal({required String imagePath, required String mea
     response = await http
         .post(
           Uri.parse(_functionUrl),
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': _publishableKey,
-            'Authorization': 'Bearer $_publishableKey',
-          },
+          headers: {'Content-Type': 'application/json', 'apikey': _publishableKey, 'Authorization': 'Bearer $_publishableKey'},
           body: jsonEncode({
             'image_base64': base64Encode(bytes),
             'mime_type': imagePath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg',
@@ -87,6 +93,8 @@ MealAnalysis parseAnalysis(Map<String, dynamic> json) {
       .where((option) => option.isNotEmpty)
       .toList();
   final category = json['category'] as String? ?? '';
+  final guide = Map<String, dynamic>.from((json['next_guide'] as Map?) ?? const {});
+  final exercise = Map<String, dynamic>.from((json['exercise'] as Map?) ?? const {});
   return MealAnalysis(
     category: categories.contains(category) ? category : '한식',
     items: items,
@@ -97,5 +105,10 @@ MealAnalysis parseAnalysis(Map<String, dynamic> json) {
         : servings,
     macroFeedback: json['macro_feedback'] as String? ?? '',
     foodStory: json['food_story'] as String? ?? '',
+    guideTitle: guide['title'] as String? ?? '',
+    guideBody: guide['body'] as String? ?? '',
+    exerciseName: exercise['name'] as String? ?? '',
+    exerciseMinutes: (exercise['minutes'] as num?)?.round() ?? 0,
+    exerciseKcal: (exercise['calories'] as num?)?.round() ?? 0,
   );
 }

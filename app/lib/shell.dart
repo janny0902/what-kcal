@@ -77,17 +77,12 @@ class _WhatKcalShellState extends State<_WhatKcalShell> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _hello());
     }
     final now = seoulStamp();
-    final titles = [
-      ('왓칼로리', formatKoreanDate(now.date)),
-      ('달력', '주간과 월간'),
-      ('기록', '이 기기에 남긴 식사'),
-      ('설정', '이 폰'),
-    ];
+    final titles = [('왓칼로리', formatKoreanDate(now.date)), ('달력', '주간과 월간'), ('기록', '오늘 몇 g 뺐는지, 다음엔 뭘 할지'), ('설정', '이 폰')];
     final title = _draft != null
         ? ('분석 결과', '확인하고 이 기기에 저장해요')
         : _imagePath != null
-            ? ('식단 올리기', '계산 전 식사를 확인해요')
-            : titles[_tab];
+        ? ('식단 올리기', '계산 전 식사를 확인해요')
+        : titles[_tab];
 
     return PopScope(
       canPop: _onTabs,
@@ -112,14 +107,20 @@ class _WhatKcalShellState extends State<_WhatKcalShell> {
                         padding: EdgeInsets.all(16),
                         child: Text('광고를 불러오지 못했어요. 결과를 이어갈게요.', textAlign: TextAlign.center),
                       ),
-                    if (_draft != null || _onTabs)
-                      const Padding(padding: EdgeInsets.only(top: 6), child: AdmobBanner()),
+                    if (_draft != null || _onTabs) const Padding(padding: EdgeInsets.only(top: 6), child: AdmobBanner()),
                     if (_imagePath != null && _draft == null)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                         child: Column(
                           children: [
-                            MintButton(label: _analyzing ? '분석 중' : _busy ? '광고 준비 중' : '계산하기', onPressed: _busy ? null : _calculate),
+                            MintButton(
+                              label: _analyzing
+                                  ? '분석 중'
+                                  : _busy
+                                  ? '광고 준비 중'
+                                  : '계산하기',
+                              onPressed: _busy ? null : _calculate,
+                            ),
                             const SizedBox(height: 6),
                             const Text('광고가 나오는 동안 AI가 사진 속 음식을 분석해요.', style: TextStyle(color: AppColors.muted, fontSize: 12)),
                           ],
@@ -168,7 +169,7 @@ class _WhatKcalShellState extends State<_WhatKcalShell> {
     return switch (_tab) {
       0 => TodayPage(store: widget.store, onOpen: _edit, onDelete: _askDelete),
       1 => CalendarPage(store: widget.store, onOpen: _edit, onDelete: _askDelete),
-      2 => ArchivePage(store: widget.store, onOpen: _edit, onDelete: _askDelete),
+      2 => ArchivePage(store: widget.store, onOpen: _edit),
       _ => SettingsPage(store: widget.store, onWipe: _askWipe),
     };
   }
@@ -201,8 +202,16 @@ class _WhatKcalShellState extends State<_WhatKcalShell> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-                Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 12)),
+                Text(
+                  title,
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
               ],
             ),
           ),
@@ -216,7 +225,9 @@ class _WhatKcalShellState extends State<_WhatKcalShell> {
     return Material(
       color: Colors.white,
       child: DecoratedBox(
-        decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.line))),
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: AppColors.line)),
+        ),
         child: Padding(
           padding: EdgeInsets.only(top: 8, bottom: bottomInset > 8 ? bottomInset : 8),
           child: SizedBox(
@@ -242,11 +253,7 @@ class _WhatKcalShellState extends State<_WhatKcalShell> {
                     key: const Key('camera-fab'),
                     customBorder: const CircleBorder(),
                     onTap: _pickPhoto,
-                    child: const SizedBox(
-                      width: 58,
-                      height: 58,
-                      child: Icon(Icons.photo_camera_outlined, color: Colors.white),
-                    ),
+                    child: const SizedBox(width: 58, height: 58, child: Icon(Icons.photo_camera_outlined, color: Colors.white)),
                   ),
                 ),
               ],
@@ -269,7 +276,10 @@ class _WhatKcalShellState extends State<_WhatKcalShell> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, color: color, size: 22),
-              Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
+              Text(
+                label,
+                style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700),
+              ),
             ],
           ),
         ),
@@ -320,7 +330,10 @@ class _WhatKcalShellState extends State<_WhatKcalShell> {
             const SizedBox(height: 8),
             OutlinedButton(
               onPressed: () => Navigator.pop(context, ImageSource.gallery),
-              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
               child: const Text('앨범에서 고르기', style: TextStyle(fontWeight: FontWeight.w700)),
             ),
           ],
@@ -348,8 +361,11 @@ class _WhatKcalShellState extends State<_WhatKcalShell> {
       _busy = true;
       _analysisNotice = null;
     });
-    final analysis = analyzeMeal(imagePath: image, mealType: _captureType, clientTime: '${now.mealDate} ${now.mealTime}')
-        .then<Object>((value) => value, onError: (Object error) => error);
+    final analysis = analyzeMeal(
+      imagePath: image,
+      mealType: _captureType,
+      clientTime: '${now.mealDate} ${now.mealTime}',
+    ).then<Object>((value) => value, onError: (Object error) => error);
     final shown = await showInterstitial();
     if (!mounted) return;
     if (!shown) {
@@ -367,9 +383,7 @@ class _WhatKcalShellState extends State<_WhatKcalShell> {
     setState(() {
       _busy = false;
       _analyzing = false;
-      _analysisNotice = result == null
-          ? '${outcome is AnalysisException ? outcome.message : '사진을 분석하지 못했어요.'} 음식을 고르거나 직접 입력해 주세요.'
-          : null;
+      _analysisNotice = result == null ? '${outcome is AnalysisException ? outcome.message : '사진을 분석하지 못했어요.'} 음식을 고르거나 직접 입력해 주세요.' : null;
       _draft = MealRecord(
         id: newId(),
         mealDate: now.mealDate,
@@ -377,7 +391,8 @@ class _WhatKcalShellState extends State<_WhatKcalShell> {
         mealType: _captureType,
         category: result?.category ?? '한식',
         items: result?.items ?? [MealItem(id: newId(), name: '', portion: '', calories: 0, description: '')],
-        servingOptions: result?.servingOptions ??
+        servingOptions:
+            result?.servingOptions ??
             [
               [1],
               [2, 3],
@@ -385,6 +400,11 @@ class _WhatKcalShellState extends State<_WhatKcalShell> {
         servingIndex: 0,
         macroFeedback: result?.macroFeedback ?? '',
         foodStory: result?.foodStory ?? '',
+        guideTitle: result?.guideTitle ?? '',
+        guideBody: result?.guideBody ?? '',
+        exerciseName: result?.exerciseName ?? '',
+        exerciseMinutes: result?.exerciseMinutes ?? 0,
+        exerciseKcal: result?.exerciseKcal ?? 0,
         imagePath: image,
         recordedLabel: recordedLabel(now.mealDate, now.mealTime, _captureType),
         updatedAt: DateTime.now().millisecondsSinceEpoch,
@@ -414,10 +434,12 @@ class _WhatKcalShellState extends State<_WhatKcalShell> {
     final draft = _draft;
     if (draft == null || !hasValidItem(draft)) return;
     draft.items = draft.items
-        .map((item) => item.copy()
-          ..name = item.name.trim()
-          ..portion = item.portion.trim()
-          ..description = item.description.trim())
+        .map(
+          (item) => item.copy()
+            ..name = item.name.trim()
+            ..portion = item.portion.trim()
+            ..description = item.description.trim(),
+        )
         .where((item) => item.name.isNotEmpty && item.calories > 0)
         .toList();
     draft.macroFeedback = draft.macroFeedback.trim();
