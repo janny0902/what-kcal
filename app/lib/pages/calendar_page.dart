@@ -114,8 +114,8 @@ class _CalendarPageState extends State<CalendarPage> {
                                 ),
                               ),
                               Text(
-                                weekGrams[i] == null ? '–' : signedGrams(weekGrams[i]!),
-                                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: _gramColor(weekGrams[i])),
+                                weekValues[i] == 0 ? '–' : comma(weekValues[i]),
+                                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: weekValues[i] == 0 ? AppColors.muted : AppColors.mintDeep),
                               ),
                             ],
                           ),

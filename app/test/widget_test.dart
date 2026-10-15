@@ -137,7 +137,8 @@ void main() {
   testWidgets('달력 주간에 누적 몸무게가 나온다', (tester) async {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: CalendarPage(store: todayStore(), onOpen: (_) {}, onDelete: (_) {}))));
     expect(find.text('누적 몸무게'), findsOneWidget);
-    expect(find.text('-130g'), findsWidgets);
+    expect(find.text('-130g'), findsOneWidget);
+    expect(find.text('1,000'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
